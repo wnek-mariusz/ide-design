@@ -1,0 +1,80 @@
+{
+  "name": "element-inspector",
+  "displayName": "Element Inspector",
+  "description": "Inspect and select HTML elements from a live web page in Simple Browser, then paste element info directly into your terminal for AI coding assistants.",
+  "version": "0.1.0",
+  "publisher": "tm-design",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:element-inspector.openInspector",
+    "onCommand:element-inspector.openUrl",
+    "onCommand:element-inspector.openFile",
+    "onCommand:element-inspector.toggleInspection"
+  ],
+  "main": "./dist/extension.js",
+  "bin": {
+    "element-inspector": "./bin/element-inspector.js"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "element-inspector.openInspector",
+        "title": "Element Inspector: Open Inspector"
+      },
+      {
+        "command": "element-inspector.openUrl",
+        "title": "Element Inspector: Open URL"
+      },
+      {
+        "command": "element-inspector.openFile",
+        "title": "Element Inspector: Open File"
+      },
+      {
+        "command": "element-inspector.toggleInspection",
+        "title": "Element Inspector: Toggle Inspection"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "element-inspector.openFile",
+          "when": "resourceExtname == .html || resourceExtname == .htm",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "element-inspector.toggleInspection",
+        "key": "ctrl+shift+alt+i",
+        "mac": "cmd+shift+alt+i"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "test": "jest",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package --no-dependencies",
+    "install-ext": "npm run build && npm run package && code --install-extension element-inspector-0.1.0.vsix --force",
+    "uninstall-ext": "code --uninstall-extension tm-design.element-inspector"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.20.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  }
+}
