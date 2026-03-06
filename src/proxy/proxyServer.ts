@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as url from 'url';
 import { injectInspectorScript, isHtmlResponse, INSPECTOR_SCRIPT_PATH } from './injector';
-import { isElementSelectedMessage, ElementSelectedMessage } from '../messaging/messageProtocol';
+import { isElementSelectedMessage, ElementSelectedMessage, isBatchInstructionsMessage, BatchInstructionsMessage } from '../messaging/messageProtocol';
 import { LiveReloadManager, LIVERELOAD_SSE_PATH } from './liveReload';
 
 const MIME_TYPES: Record<string, string> = {
@@ -38,6 +38,7 @@ export interface ProxyServerOptions {
   port?: number;
   watchPath?: string;
   onElementSelected?: (msg: ElementSelectedMessage) => void;
+  onBatchInstructions?: (msg: BatchInstructionsMessage) => void;
 }
 
 export interface ProxyServerToggleCallback {
@@ -50,6 +51,7 @@ export class ProxyServer {
   private targetUrl: string | null;
   private staticRoot: string | null;
   private onElementSelected?: (msg: ElementSelectedMessage) => void;
+  private onBatchInstructions?: (msg: BatchInstructionsMessage) => void;
   private onInspectionToggled?: ProxyServerToggleCallback;
   private liveReload: LiveReloadManager | null = null;
   private eventClients: Set<http.ServerResponse> = new Set();
@@ -60,6 +62,7 @@ export class ProxyServer {
     this.staticRoot = options.staticRoot || null;
     this._port = options.port || 0;
     this.onElementSelected = options.onElementSelected;
+    this.onBatchInstructions = options.onBatchInstructions;
     if (options.watchPath) {
       this.liveReload = new LiveReloadManager(options.watchPath);
     }
@@ -254,15 +257,21 @@ export class ProxyServer {
     });
   }
 
+  private routeInspectorMessage(data: unknown): void {
+    if (isElementSelectedMessage(data) && this.onElementSelected) {
+      this.onElementSelected(data);
+    } else if (isBatchInstructionsMessage(data) && this.onBatchInstructions) {
+      this.onBatchInstructions(data);
+    }
+  }
+
   private handleElementSelection(req: http.IncomingMessage, res: http.ServerResponse): void {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        if (isElementSelectedMessage(data) && this.onElementSelected) {
-          this.onElementSelected(data);
-        }
+        this.routeInspectorMessage(data);
         res.writeHead(200, {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -286,9 +295,7 @@ export class ProxyServer {
       const encoded = parsed.searchParams.get('d');
       if (encoded) {
         const data = JSON.parse(encoded);
-        if (isElementSelectedMessage(data) && this.onElementSelected) {
-          this.onElementSelected(data);
-        }
+        this.routeInspectorMessage(data);
       }
     } catch {
       // ignore parse errors
@@ -314,9 +321,7 @@ export class ProxyServer {
       const encoded = parsed.searchParams.get('d');
       if (encoded) {
         const data = JSON.parse(encoded);
-        if (isElementSelectedMessage(data) && this.onElementSelected) {
-          this.onElementSelected(data);
-        }
+        this.routeInspectorMessage(data);
       }
     } catch {
       // ignore parse errors

@@ -1,5 +1,5 @@
 import { startInspectorServer } from './server';
-import { printToStdout } from './output/stdout';
+import { printToStdout, printBatchToStdout } from './output/stdout';
 import { exec } from 'child_process';
 import * as path from 'path';
 
@@ -103,6 +103,7 @@ async function main(): Promise<void> {
       port: options.port,
       watchPath: options.watchPath,
       onElementSelected: printToStdout,
+      onBatchInstructions: printBatchToStdout,
     });
 
     console.log(`\nElement Inspector`);

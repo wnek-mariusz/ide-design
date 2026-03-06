@@ -1,5 +1,5 @@
 import { ProxyServer } from './proxy/proxyServer';
-import { ElementSelectedMessage } from './messaging/messageProtocol';
+import { ElementSelectedMessage, BatchInstructionsMessage } from './messaging/messageProtocol';
 
 export interface InspectorServerOptions {
   targetUrl?: string;
@@ -7,6 +7,7 @@ export interface InspectorServerOptions {
   port?: number;
   watchPath?: string;
   onElementSelected?: (msg: ElementSelectedMessage) => void;
+  onBatchInstructions?: (msg: BatchInstructionsMessage) => void;
 }
 
 export interface InspectorServer {
@@ -30,6 +31,7 @@ export async function startInspectorServer(
     port: options.port,
     watchPath: options.watchPath,
     onElementSelected: options.onElementSelected,
+    onBatchInstructions: options.onBatchInstructions,
   });
 
   await proxy.start();

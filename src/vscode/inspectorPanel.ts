@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
-import { ElementSelectedMessage, isElementSelectedMessage } from '../messaging/messageProtocol';
+import { ElementSelectedMessage, BatchInstructionsMessage, isElementSelectedMessage, isBatchInstructionsMessage } from '../messaging/messageProtocol';
 
 let currentPanel: vscode.WebviewPanel | null = null;
 
 export function openInspectorPanel(
   url: string,
-  onElementSelected: (msg: ElementSelectedMessage) => void
+  onElementSelected: (msg: ElementSelectedMessage) => void,
+  onBatchInstructions?: (msg: BatchInstructionsMessage) => void
 ): vscode.WebviewPanel {
   if (currentPanel) {
     currentPanel.reveal(vscode.ViewColumn.One);
@@ -28,6 +29,8 @@ export function openInspectorPanel(
   panel.webview.onDidReceiveMessage((message) => {
     if (isElementSelectedMessage(message)) {
       onElementSelected(message);
+    } else if (isBatchInstructionsMessage(message) && onBatchInstructions) {
+      onBatchInstructions(message);
     }
   });
 
@@ -54,7 +57,8 @@ function getWebviewHtml(url: string): string {
   <script>
     const vscode = acquireVsCodeApi();
     window.addEventListener('message', (e) => {
-      if (e.data && e.data.source === 'element-inspector' && e.data.type === 'element-selected') {
+      if (e.data && e.data.source === 'element-inspector' &&
+          (e.data.type === 'element-selected' || e.data.type === 'batch-instructions')) {
         vscode.postMessage(e.data);
       }
     });

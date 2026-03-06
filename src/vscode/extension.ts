@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { startInspectorServer, InspectorServer } from '../server';
-import { pasteToTerminal } from './terminalPaster';
+import { pasteToTerminal, pasteBatchToTerminal } from './terminalPaster';
 import { StatusBarManager } from './statusBar';
 import { openInspectorPanel } from './inspectorPanel';
 
@@ -80,6 +80,9 @@ async function startInspectorWithStaticServer(staticRoot: string, openPath?: str
       onElementSelected: (msg) => {
         pasteToTerminal(msg);
       },
+      onBatchInstructions: (msg) => {
+        pasteBatchToTerminal(msg);
+      },
     });
 
     statusBar?.setInspectionEnabled(enableInspection);
@@ -98,6 +101,8 @@ async function startInspectorWithStaticServer(staticRoot: string, openPath?: str
       : inspectorServer.proxyUrl;
     openInspectorPanel(browserUrl, (msg) => {
       pasteToTerminal(msg);
+    }, (msg) => {
+      pasteBatchToTerminal(msg);
     });
 
     vscode.window.showInformationMessage(
@@ -122,6 +127,9 @@ async function startInspector(targetUrl: string): Promise<void> {
       onElementSelected: (msg) => {
         pasteToTerminal(msg);
       },
+      onBatchInstructions: (msg) => {
+        pasteBatchToTerminal(msg);
+      },
     });
 
     statusBar?.setInspectionEnabled(false);
@@ -133,6 +141,8 @@ async function startInspector(targetUrl: string): Promise<void> {
 
     openInspectorPanel(inspectorServer.proxyUrl, (msg) => {
       pasteToTerminal(msg);
+    }, (msg) => {
+      pasteBatchToTerminal(msg);
     });
 
     vscode.window.showInformationMessage(

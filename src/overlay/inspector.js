@@ -121,6 +121,248 @@
   document.documentElement.appendChild(highlight);
   document.documentElement.appendChild(tooltip);
 
+  // --- Inspector Element Check ---
+
+  function isInspectorElement(el) {
+    var node = el;
+    while (node) {
+      if (node.id && node.id.startsWith('__ei_')) return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  // --- Instruction Queue ---
+
+  var instructionQueue = [];
+  var instructionMarkers = [];
+
+  // --- Instruction Popup ---
+
+  var popup = document.createElement('div');
+  popup.id = '__ei_popup__';
+  popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e1e1e;color:#fff;font-family:monospace;font-size:13px;padding:16px;border-radius:8px;z-index:2147483647;display:none;width:400px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,0.5);';
+
+  var popupHeader = document.createElement('div');
+  popupHeader.id = '__ei_popup_header__';
+  popupHeader.style.cssText = 'margin-bottom:8px;padding:4px 8px;background:#2a2a2a;border-radius:4px;font-size:11px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+
+  var popupTextarea = document.createElement('textarea');
+  popupTextarea.id = '__ei_popup_textarea__';
+  popupTextarea.placeholder = 'Type instruction for this element...';
+  popupTextarea.style.cssText = 'width:100%;height:80px;background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:4px;padding:8px;font-family:monospace;font-size:13px;resize:vertical;box-sizing:border-box;';
+
+  var popupButtons = document.createElement('div');
+  popupButtons.id = '__ei_popup_buttons__';
+  popupButtons.style.cssText = 'margin-top:8px;display:flex;gap:8px;justify-content:flex-end;';
+
+  var popupCancel = document.createElement('button');
+  popupCancel.id = '__ei_popup_cancel__';
+  popupCancel.textContent = 'Cancel';
+  popupCancel.style.cssText = 'padding:6px 16px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:13px;';
+
+  var popupAdd = document.createElement('button');
+  popupAdd.id = '__ei_popup_add__';
+  popupAdd.textContent = 'Add';
+  popupAdd.style.cssText = 'padding:6px 16px;background:#4A90D9;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;';
+
+  popupButtons.appendChild(popupCancel);
+  popupButtons.appendChild(popupAdd);
+  popup.appendChild(popupHeader);
+  popup.appendChild(popupTextarea);
+  popup.appendChild(popupButtons);
+  document.documentElement.appendChild(popup);
+
+  var pendingElementData = null;
+
+  function showPopup(selector, filePath, htmlSnippet) {
+    pendingElementData = { selector: selector, filePath: filePath, htmlSnippet: htmlSnippet };
+    popupHeader.textContent = selector;
+    popupTextarea.value = '';
+    popup.style.display = 'block';
+    inspectionEnabled = false;
+    highlight.style.display = 'none';
+    tooltip.style.display = 'none';
+    setTimeout(function () { popupTextarea.focus(); }, 0);
+  }
+
+  function hidePopup() {
+    popup.style.display = 'none';
+    pendingElementData = null;
+    inspectionEnabled = true;
+  }
+
+  popupAdd.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (!pendingElementData) return;
+    var instruction = popupTextarea.value.trim();
+    if (!instruction) return;
+    instructionQueue.push({
+      instruction: instruction,
+      selector: pendingElementData.selector,
+      filePath: pendingElementData.filePath,
+      htmlSnippet: pendingElementData.htmlSnippet
+    });
+    addInstructionMarker(currentElement, instructionQueue.length);
+    hidePopup();
+    updateFloatingMenu();
+  }, true);
+
+  popupCancel.addEventListener('click', function (e) {
+    e.stopPropagation();
+    hidePopup();
+  }, true);
+
+  // Close popup on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && popup.style.display !== 'none') {
+      e.preventDefault();
+      e.stopPropagation();
+      hidePopup();
+    }
+  }, true);
+
+  // --- Floating Menu ---
+
+  var floatingMenu = document.createElement('div');
+  floatingMenu.id = '__ei_floating_menu__';
+  floatingMenu.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e1e1e;color:#fff;font-family:monospace;font-size:13px;padding:8px 12px;border-radius:8px;z-index:2147483647;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.5);display:none;align-items:center;gap:10px;';
+
+  var floatingBadge = document.createElement('span');
+  floatingBadge.id = '__ei_floating_badge__';
+  floatingBadge.style.cssText = 'background:#4A90D9;color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;';
+
+  var floatingPlay = document.createElement('button');
+  floatingPlay.id = '__ei_floating_play__';
+  floatingPlay.textContent = '\u25B6';
+  floatingPlay.title = 'Send all instructions';
+  floatingPlay.style.cssText = 'background:#4A90D9;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:16px;';
+
+  var floatingClear = document.createElement('button');
+  floatingClear.id = '__ei_floating_clear__';
+  floatingClear.textContent = '\u2715';
+  floatingClear.title = 'Clear queue';
+  floatingClear.style.cssText = 'background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:14px;';
+
+  floatingMenu.appendChild(floatingBadge);
+  floatingMenu.appendChild(floatingPlay);
+  floatingMenu.appendChild(floatingClear);
+  document.documentElement.appendChild(floatingMenu);
+
+  function updateFloatingMenu() {
+    if (instructionQueue.length > 0) {
+      floatingMenu.style.display = 'flex';
+      floatingBadge.textContent = String(instructionQueue.length);
+    } else {
+      floatingMenu.style.display = 'none';
+    }
+  }
+
+  function addInstructionMarker(element, number) {
+    var marker = document.createElement('div');
+    marker.id = '__ei_marker_' + number + '__';
+    marker.textContent = String(number);
+    marker.style.cssText = 'position:fixed;width:20px;height:20px;background:#4A90D9;color:#fff;border-radius:50%;font-family:monospace;font-size:11px;font-weight:bold;display:flex;align-items:center;justify-content:center;z-index:2147483647;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,0.4);';
+    positionMarker(marker, element);
+    document.documentElement.appendChild(marker);
+    instructionMarkers.push({ marker: marker, element: element });
+  }
+
+  function positionMarker(marker, element) {
+    var rect = element.getBoundingClientRect();
+    marker.style.top = (rect.top - 10) + 'px';
+    marker.style.left = (rect.right - 10) + 'px';
+  }
+
+  function updateMarkerPositions() {
+    for (var i = 0; i < instructionMarkers.length; i++) {
+      positionMarker(instructionMarkers[i].marker, instructionMarkers[i].element);
+    }
+  }
+
+  function clearInstructionMarkers() {
+    for (var i = 0; i < instructionMarkers.length; i++) {
+      var m = instructionMarkers[i].marker;
+      if (m.parentNode) m.parentNode.removeChild(m);
+    }
+    instructionMarkers = [];
+  }
+
+  window.addEventListener('scroll', updateMarkerPositions, true);
+  window.addEventListener('resize', updateMarkerPositions);
+
+  function sendBatchInstructions() {
+    if (instructionQueue.length === 0) return;
+
+    var message = {
+      type: 'batch-instructions',
+      source: MESSAGE_SOURCE,
+      payload: {
+        instructions: instructionQueue.slice()
+      }
+    };
+
+    var body = JSON.stringify(message);
+    console.log('[Element Inspector] Sending batch instructions:', body);
+
+    // Try fetch POST first, fall back to SSE
+    var sent = false;
+    try {
+      if (typeof fetch === 'function') {
+        fetch('/__inspector__/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body
+        }).then(function () {
+          console.log('[Element Inspector] Batch sent via fetch');
+        }).catch(function () {
+          sendViaSse(body);
+        });
+        sent = true;
+      }
+    } catch (err) { /* ignore */ }
+
+    if (!sent) {
+      sendViaSse(body);
+    }
+
+    // Also try postMessage for webview integration
+    try {
+      window.parent.postMessage(message, '*');
+    } catch (e) { /* ignore */ }
+
+    instructionQueue = [];
+    clearInstructionMarkers();
+    updateFloatingMenu();
+  }
+
+  function sendViaSse(body) {
+    try {
+      var es = new EventSource('/__inspector__/select-sse?d=' + encodeURIComponent(body));
+      es.onopen = function () {
+        console.log('[Element Inspector] Batch sent via SSE');
+        es.close();
+      };
+      es.onerror = function () {
+        es.close();
+      };
+    } catch (err) {
+      console.log('[Element Inspector] SSE batch exception:', err);
+    }
+  }
+
+  floatingPlay.addEventListener('click', function (e) {
+    e.stopPropagation();
+    sendBatchInstructions();
+  }, true);
+
+  floatingClear.addEventListener('click', function (e) {
+    e.stopPropagation();
+    instructionQueue = [];
+    clearInstructionMarkers();
+    updateFloatingMenu();
+  }, true);
+
   // --- Iframe Helpers ---
 
   function findIframeAtPoint(x, y) {
@@ -193,6 +435,15 @@
   function onMouseMove(e) {
     if (!inspectionEnabled) return;
 
+    // Skip if hovering over inspector UI (floating menu, popup, etc.)
+    var topEl = document.elementFromPoint(e.clientX, e.clientY);
+    if (topEl && isInspectorElement(topEl)) {
+      highlight.style.display = 'none';
+      tooltip.style.display = 'none';
+      currentElement = null;
+      return;
+    }
+
     // Temporarily hide overlay elements to get the actual element under cursor
     highlight.style.display = 'none';
     tooltip.style.display = 'none';
@@ -249,10 +500,7 @@
 
     var target = document.elementFromPoint(e.clientX, e.clientY);
 
-    if (!target || target === overlay || target === highlight || target === tooltip ||
-        target.id === '__ei_overlay__' || target.id === '__ei_highlight__' || target.id === '__ei_tooltip__') {
-      return;
-    }
+    if (!target || isInspectorElement(target)) return;
 
     currentElement = target;
     var rect = target.getBoundingClientRect();
@@ -281,6 +529,9 @@
     console.log('[Element Inspector] Click fired. inspectionEnabled:', inspectionEnabled, 'currentElement:', currentElement);
     if (!inspectionEnabled || !currentElement) return;
 
+    // Let clicks on inspector UI (floating menu, popup) pass through
+    if (e.target && isInspectorElement(e.target)) return;
+
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
@@ -295,39 +546,7 @@
     }
     var htmlSnippet = getHtmlSnippet(currentElement);
 
-    var message = {
-      type: 'element-selected',
-      source: MESSAGE_SOURCE,
-      payload: {
-        selector: selector,
-        filePath: filePath,
-        htmlSnippet: htmlSnippet
-      }
-    };
-
-    var body = JSON.stringify(message);
-    console.log('[Element Inspector] Sending selection:', body);
-
-    // Use EventSource (SSE) to send data — it works in Cursor Simple Browser
-    // where XHR/fetch/sendBeacon/Image are all blocked
-    try {
-      var es = new EventSource('/__inspector__/select-sse?d=' + encodeURIComponent(body));
-      es.onopen = function() {
-        console.log('[Element Inspector] SSE select: connected');
-        es.close();
-      };
-      es.onerror = function() {
-        console.log('[Element Inspector] SSE select: error');
-        es.close();
-      };
-    } catch (err) {
-      console.log('[Element Inspector] SSE select exception:', err);
-    }
-
-    // Also try postMessage for future webview integration
-    try {
-      window.parent.postMessage(message, '*');
-    } catch (e) { /* ignore */ }
+    showPopup(selector, filePath, htmlSnippet);
   }
 
   // Use capture phase to intercept clicks before the page handles them
